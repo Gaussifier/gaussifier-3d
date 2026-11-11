@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>gaussifier-viewer embed</title>
+<style>
+  body { margin: 0; background: #0e1013; color: #aab2c0; font: 14px system-ui, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+  gaussifier-viewer { width: 100%; aspect-ratio: 1 / 1; border: 1px solid #262c36; border-radius: 8px; }
+  pre { background: #14171c; border: 1px solid #262c36; border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 12.5px; }
+  h1 { font-size: 16px; color: #e7eaf0; }
+</style>
+<script type="module" src="./lib/gaussifier-viewer.js"></script>
+</head>
+<body>
+<main>
+  <h1>One tag, one URL</h1>
+  <gaussifier-viewer src="./samples/bench_input_512.splat2d"></gaussifier-viewer>
+  <p>Wheel zooms, drag pans, <code>f</code> fits, <code>1</code> shows actual size.</p>
+<pre>&lt;script type="module" src="gaussifier-viewer.js"&gt;&lt;/script&gt;
+&lt;gaussifier-viewer src="scene.splat2d"&gt;&lt;/gaussifier-viewer&gt;
+
+// or from code
+import { loadSceneFromUrl, createViewer } from "./gaussifier-viewer.js";
+const el = document.querySelector("gaussifier-viewer");
+el.addEventListener("load", (e) =&gt; console.log(e.detail.scene.states[0].xy.length / 2, "Gaussians"));
+await el.load("another.splat2d");</pre>
+</main>
+</body>
+</html>

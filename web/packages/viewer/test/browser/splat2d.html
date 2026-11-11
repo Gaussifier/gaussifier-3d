@@ -1,0 +1,42 @@
+<!doctype html><html><head><meta charset="utf-8">
+<script type="importmap">{ "imports": { "@gaussifier/wgsl": "/packages/wgsl/dist/index.js", "@gaussifier/viewer": "/packages/viewer/dist/index.js" } }</script>
+</head><body><canvas id="c" width="768" height="512"></canvas><script type="module">
+import { createViewer, loadSplat2d } from "@gaussifier/viewer";
+const log = (s) => console.log(s);
+async function planarFromPng(url) {
+  const bmp = await createImageBitmap(await (await fetch(url)).blob());
+  const c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
+  const ctx = c.getContext("2d"); ctx.drawImage(bmp, 0, 0);
+  const d = ctx.getImageData(0, 0, bmp.width, bmp.height).data; const hw = bmp.width * bmp.height;
+  const out = new Float32Array(3 * hw);
+  for (let i = 0; i < hw; i++) { out[i] = d[4 * i] / 255; out[hw + i] = d[4 * i + 1] / 255; out[2 * hw + i] = d[4 * i + 2] / 255; }
+  return { planar: out, width: bmp.width, height: bmp.height };
+}
+window.__runTests = async () => {
+  const results = []; let passed = 0, failed = 0;
+  const check = (name, ok, detail) => { results.push({ name, ok, ...detail }); ok ? passed++ : failed++; log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(detail)}`); };
+  try {
+    const scene = loadSplat2d(await (await fetch("/fixtures/refs/kodim01.splat2d")).arrayBuffer());
+    const img = await planarFromPng("/fixtures/refs/kodim01.png");
+    check("dims_match", scene.width === img.width && scene.height === img.height, { scene: [scene.width, scene.height], image: [img.width, img.height], n: scene.states[0].xy.length / 2 });
+    scene.image = img.planar;
+    for (const backend of ["webgpu", "webgl2"]) {
+      const canvas = document.createElement("canvas"); canvas.width = scene.width; canvas.height = scene.height;
+      canvas.style.width = scene.width + "px"; canvas.style.height = scene.height + "px"; document.body.appendChild(canvas);
+      try {
+        const viewer = createViewer(canvas, { backend, pixelRatio: 1 });
+        await viewer.ready;
+        viewer.setScene(scene); viewer.oneToOne(); await viewer.renderNow();
+        const px = await viewer.readPixels();
+        const hw = scene.width * scene.height; let se = 0;
+        for (let i = 0; i < hw; i++) for (let c = 0; c < 3; c++) { const d = px[4 * i + c] / 255 - img.planar[c * hw + i]; se += d * d; }
+        const psnr = 10 * Math.log10(1 / (se / (3 * hw)));
+        check(`splat2d_kodim01_${backend}`, psnr > 28, { psnr_db: +psnr.toFixed(2), pixels: px.length / 4 });
+        viewer.dispose();
+      } catch (e) { check(`splat2d_kodim01_${backend}`, false, { error: String(e).slice(0, 200) }); }
+    }
+  } catch (e) { failed++; results.push({ name: "exception", ok: false, error: String(e), stack: String(e.stack).slice(0, 800) }); log("EXC " + e); }
+  return { passed, failed, results };
+};
+window.__testReady = true;
+</script></body></html>

@@ -1,0 +1,400 @@
+{
+ "image": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "density": {
+  "dtype": "float32",
+  "shape": [
+   512,
+   512
+  ],
+  "bytes": 1048576
+ },
+ "rate": {
+  "dtype": "float32",
+  "shape": [
+   512,
+   512
+  ],
+  "bytes": 1048576
+ },
+ "log_cov": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "rgb": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "oversample": {
+  "dtype": "float32",
+  "shape": [
+   126261,
+   2
+  ],
+  "bytes": 1010088
+ },
+ "merged": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "polished": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "owner_final": {
+  "dtype": "int32",
+  "shape": [
+   262144
+  ],
+  "bytes": 1048576
+ },
+ "masses": {
+  "dtype": "float32",
+  "shape": [
+   84174
+  ],
+  "bytes": 336696
+ },
+ "masses_recomputed": {
+  "dtype": "float32",
+  "shape": [
+   84174
+  ],
+  "bytes": 336696
+ },
+ "weights": {
+  "dtype": "float32",
+  "shape": [
+   84174
+  ],
+  "bytes": 336696
+ },
+ "cov0": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "rgb0": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_0_xy": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "state_0_cov": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_0_rgb": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_0_color": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_0_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "state_1_xy": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "state_1_cov": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_1_rgb": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_1_color": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_1_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "state_2_xy": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "state_2_cov": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_2_rgb": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_2_color": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_2_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "state_3_xy": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "state_3_cov": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_3_rgb": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_3_color": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_3_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "state_4_xy": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "state_4_cov": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_4_rgb": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_4_color": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_4_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "state_5_xy": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "state_5_cov": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_5_rgb": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_5_color": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_5_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ },
+ "state_6_xy": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   2
+  ],
+  "bytes": 673392
+ },
+ "state_6_cov": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_6_rgb": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_6_color": {
+  "dtype": "float32",
+  "shape": [
+   84174,
+   3
+  ],
+  "bytes": 1010088
+ },
+ "state_6_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   512,
+   512
+  ],
+  "bytes": 3145728
+ }
+}

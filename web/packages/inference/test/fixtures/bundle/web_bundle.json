@@ -1,0 +1,82 @@
+{
+ "schema_version": 1,
+ "runtime_version": "0.11.1",
+ "checkpoint_sha256": "ceacdf9c9465b09bc932787848a8dc2a177757db466f6b1bd2d26e9813b7e841",
+ "model": {
+  "correction_iterations": 7,
+  "correction_predict_xy": true,
+  "correction_output_channels": 8,
+  "correction_input_channels": 17,
+  "correction_xy_step_pixels": 2.56,
+  "decoder_density_aware": false
+ },
+ "files": [
+  {
+   "path": "forward_map.onnx",
+   "sha256": "2995f40b0df07724fa2fe8d17e1617b6403374a2dbd79f783a03615d9f02197f",
+   "bytes": 8267433,
+   "role": "forward_map",
+   "precision": "f32",
+   "shape": "dynamic"
+  },
+  {
+   "path": "correction_head.onnx",
+   "sha256": "fd00e8872b1744b35a16e3ff09847ff42e79abf7d73013a520de5cebd5f2f4f2",
+   "bytes": 3042910,
+   "role": "correction_head",
+   "precision": "f32",
+   "shape": "dynamic"
+  },
+  {
+   "path": "correction_head_wgsl.bin",
+   "sha256": "09c6e3b3a19b7f633cda458f698ccd873da77714e03bc2e76242a84cc95e764e",
+   "bytes": 2987168,
+   "role": "correction_head_wgsl",
+   "precision": "f32",
+   "shape": "any"
+  },
+  {
+   "path": "correction_head_wgsl.json",
+   "sha256": "bc92e10508856d01c2198d0d974bc346dfc1424a6f04ba0f1952ad58ff1531b5",
+   "bytes": 10220,
+   "role": "correction_head_wgsl_layout",
+   "precision": "f32",
+   "shape": "any"
+  }
+ ],
+ "io": {
+  "forward_map": {
+   "input": "image",
+   "outputs": [
+    "density",
+    "log_cov",
+    "rgb",
+    "raw_density",
+    "rate"
+   ]
+  },
+  "correction_head": {
+   "input": "features",
+   "output": "delta"
+  }
+ },
+ "sampler": {
+  "oversample": 1.5,
+  "merge_rounds": 6,
+  "per_round_fraction": 0.3333333333333333,
+  "knn_k": 8,
+  "lloyd_iters": 3,
+  "tile_cap": 32,
+  "seed_default": 12345
+ },
+ "renderer": {
+  "tile": 16,
+  "large_tile_threshold": 32,
+  "alpha_cutoff": 0.00392156862745098,
+  "capacity": "max(8N,4096)"
+ },
+ "input": {
+  "pad_multiple": 32,
+  "pad_mode": "edge"
+ }
+}

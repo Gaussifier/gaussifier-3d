@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>gaussifier-viewer { width: 512px; height: 512px; display: block; }</style>
+<script type="module" src="/packages/viewer/bundle/gaussifier-viewer.js"></script>
+</head><body><script type="module">
+import { loadSceneFromUrl } from "/packages/viewer/bundle/gaussifier-viewer.js";
+const log = (s) => console.log(s);
+window.__runTests = async () => {
+  const results = []; let passed = 0, failed = 0;
+  const check = (name, ok, detail) => { results.push({ name, ok, ...detail }); ok ? passed++ : failed++; log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(detail)}`); };
+  try {
+    check("element_defined", !!customElements.get("gaussifier-viewer"), {});
+    const el = document.createElement("gaussifier-viewer");
+    el.setAttribute("src", "/apps/demo/public/samples/bench_input_512.splat2d");
+    const loaded = new Promise((res, rej) => { el.addEventListener("load", (e) => res(e.detail.scene)); el.addEventListener("error", (e) => rej(e.detail.error)); });
+    document.body.appendChild(el);
+    const scene = await loaded;
+    check("loaded_by_url", scene.states[0].xy.length / 2 > 1000, { n: scene.states[0].xy.length / 2, size: [scene.width, scene.height] });
+    el.viewer.oneToOne(); await el.viewer.renderNow();
+    const px = await el.viewer.readPixels();
+    const img = new Float32Array(await (await fetch("/fixtures/bench_input_512/image.bin")).arrayBuffer());
+    const hw = 512 * 512; let se = 0, nonzero = 0;
+    for (let i = 0; i < hw; i++) for (let c = 0; c < 3; c++) { const v = px[4 * i + c] / 255; if (v > 0) nonzero++; const d = v - img[c * hw + i]; se += d * d; }
+    const psnr = 10 * Math.log10(1 / (se / (3 * hw)));
+    check("renders_asset", nonzero > hw && psnr > 35, { psnr_db: +psnr.toFixed(2), pixels: px.length / 4 });
+    const scene2 = await loadSceneFromUrl("/apps/demo/public/samples/bench_input_512.splat2d");
+    check("loadSceneFromUrl", scene2.width === 512, {});
+  } catch (e) { failed++; results.push({ name: "exception", ok: false, error: String(e), stack: String(e.stack).slice(0, 800) }); log("EXC " + e); }
+  return { passed, failed, results };
+};
+window.__testReady = true;
+</script></body></html>

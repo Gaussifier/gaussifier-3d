@@ -1,0 +1,14 @@
+{
+  "bench_input_512": {
+    "torchscript_eager": 23.8072,
+    "torchscript_eager_k7": 24.1207,
+    "trt_aoti_fused": 37.2323,
+    "trt_aoti_fused_k7": 37.7464
+  },
+  "synthetic_gradient": {
+    "torchscript_eager": 20.4316,
+    "torchscript_eager_k7": 20.9779,
+    "trt_aoti_fused": 26.7524,
+    "trt_aoti_fused_k7": 27.4046
+  }
+}

@@ -1,0 +1,508 @@
+{
+ "image": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "density": {
+  "dtype": "float32",
+  "shape": [
+   128,
+   128
+  ],
+  "bytes": 65536
+ },
+ "rate": {
+  "dtype": "float32",
+  "shape": [
+   128,
+   128
+  ],
+  "bytes": 65536
+ },
+ "log_cov": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "rgb": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "oversample": {
+  "dtype": "float32",
+  "shape": [
+   8189,
+   2
+  ],
+  "bytes": 65512
+ },
+ "merged": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "polished": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "owner_final": {
+  "dtype": "int32",
+  "shape": [
+   16384
+  ],
+  "bytes": 65536
+ },
+ "masses": {
+  "dtype": "float32",
+  "shape": [
+   5459
+  ],
+  "bytes": 21836
+ },
+ "masses_recomputed": {
+  "dtype": "float32",
+  "shape": [
+   5459
+  ],
+  "bytes": 21836
+ },
+ "weights": {
+  "dtype": "float32",
+  "shape": [
+   5459
+  ],
+  "bytes": 21836
+ },
+ "cov0": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "rgb0": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_0_xy": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "state_0_cov": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_0_rgb": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_0_color": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_0_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "state_1_xy": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "state_1_cov": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_1_rgb": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_1_color": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_1_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "state_2_xy": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "state_2_cov": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_2_rgb": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_2_color": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_2_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "state_3_xy": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "state_3_cov": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_3_rgb": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_3_color": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_3_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "state_4_xy": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "state_4_cov": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_4_rgb": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_4_color": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_4_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "state_5_xy": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "state_5_cov": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_5_rgb": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_5_color": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_5_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "state_6_xy": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   2
+  ],
+  "bytes": 43672
+ },
+ "state_6_cov": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_6_rgb": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_6_color": {
+  "dtype": "float32",
+  "shape": [
+   5459,
+   3
+  ],
+  "bytes": 65508
+ },
+ "state_6_rendered": {
+  "dtype": "float32",
+  "shape": [
+   3,
+   128,
+   128
+  ],
+  "bytes": 196608
+ },
+ "state_0_features": {
+  "dtype": "float32",
+  "shape": [
+   17,
+   128,
+   128
+  ],
+  "bytes": 1114112
+ },
+ "state_0_delta": {
+  "dtype": "float32",
+  "shape": [
+   8,
+   128,
+   128
+  ],
+  "bytes": 524288
+ },
+ "state_1_features": {
+  "dtype": "float32",
+  "shape": [
+   17,
+   128,
+   128
+  ],
+  "bytes": 1114112
+ },
+ "state_1_delta": {
+  "dtype": "float32",
+  "shape": [
+   8,
+   128,
+   128
+  ],
+  "bytes": 524288
+ },
+ "state_2_features": {
+  "dtype": "float32",
+  "shape": [
+   17,
+   128,
+   128
+  ],
+  "bytes": 1114112
+ },
+ "state_2_delta": {
+  "dtype": "float32",
+  "shape": [
+   8,
+   128,
+   128
+  ],
+  "bytes": 524288
+ },
+ "state_3_features": {
+  "dtype": "float32",
+  "shape": [
+   17,
+   128,
+   128
+  ],
+  "bytes": 1114112
+ },
+ "state_3_delta": {
+  "dtype": "float32",
+  "shape": [
+   8,
+   128,
+   128
+  ],
+  "bytes": 524288
+ },
+ "state_4_features": {
+  "dtype": "float32",
+  "shape": [
+   17,
+   128,
+   128
+  ],
+  "bytes": 1114112
+ },
+ "state_4_delta": {
+  "dtype": "float32",
+  "shape": [
+   8,
+   128,
+   128
+  ],
+  "bytes": 524288
+ },
+ "state_5_features": {
+  "dtype": "float32",
+  "shape": [
+   17,
+   128,
+   128
+  ],
+  "bytes": 1114112
+ },
+ "state_5_delta": {
+  "dtype": "float32",
+  "shape": [
+   8,
+   128,
+   128
+  ],
+  "bytes": 524288
+ }
+}

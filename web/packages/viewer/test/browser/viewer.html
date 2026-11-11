@@ -1,0 +1,165 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>viewer browser tests</title>
+<script type="importmap">{"imports": {"@gaussifier/wgsl": "/packages/wgsl/dist/index.js", "@gaussifier/viewer": "/packages/viewer/dist/index.js"}}</script>
+</head><body>
+<canvas id="gpu" width="64" height="64"></canvas>
+<canvas id="gl" width="64" height="64"></canvas>
+<canvas id="golden" width="128" height="128"></canvas>
+<script type="module">
+import { WebGpuBackend, WebGl2Backend, bruteForceRender, covToScaleRotation, loadNpz, psnr, createViewer } from "@gaussifier/viewer";
+
+const results = [];
+let passed = 0, failed = 0;
+function check(name, ok, info) { results.push({ name, ok, ...info }); if (ok) passed++; else failed++; console.log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(info)}`); }
+
+function pixelsToPlanar(px, w, h) {
+  const out = new Float32Array(3 * w * h);
+  for (let i = 0; i < w * h; i++) { out[i] = px[4 * i] / 255; out[w * h + i] = px[4 * i + 1] / 255; out[2 * w * h + i] = px[4 * i + 2] / 255; }
+  return out;
+}
+function maxAbs(a, b) { let m = 0; for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i] - b[i])); return m; }
+async function fetchBin(url) { const r = await fetch(url); if (!r.ok) return null; return new Float32Array(await r.arrayBuffer()); }
+
+const synthetic = () => {
+  const cov = new Float32Array([Math.log(9), 0.4, Math.log(4), Math.log(2), 0, Math.log(2), Math.log(16), -0.8, Math.log(3)]);
+  const { scale, rotation } = covToScaleRotation(cov, 3);
+  return { xy: new Float32Array([0.3, 0.4, 0.6, 0.5, 0.5, 0.75]), cov, scale, rotation, color: new Float32Array([0.9, 0.2, 0.1, 0.1, 0.8, 0.3, 0.2, 0.3, 0.9]) };
+};
+
+async function testBackend(name, backend, state, w, h) {
+  backend.setState(state, w, h);
+  backend.render({ zoom: 1, tx: 0, ty: 0 });
+  const px = await backend.readPixels();
+  const got = pixelsToPlanar(px, w, h);
+  const ref = bruteForceRender(state, w, h, false);
+  const refQ = bruteForceRender(state, w, h, true);
+  const p = psnr(got, ref);
+  const mq = maxAbs(got, refQ);
+  const mr = maxAbs(got, ref);
+  check(`${name}: three Gaussians vs brute force`, p >= 60 && mq <= 1 / 255 + 1e-6 && mr <= 2e-3 + 1e-6, { psnr_db: +p.toFixed(2), max_abs_vs_quantized: +mq.toExponential(2), max_abs_vs_raw: +mr.toExponential(2), accum: backend.accumFormat });
+  backend.setOverlays({ ellipses: true, centers: true });
+  backend.render({ zoom: 2, tx: -10, ty: -5 });
+  const px2 = await backend.readPixels();
+  let nonzero = 0; for (let i = 0; i < px2.length; i += 4) if (px2[i] + px2[i + 1] + px2[i + 2] > 0) nonzero++;
+  check(`${name}: overlays and zoomed view render`, nonzero > 0, { nonzero_pixels: nonzero });
+  backend.setOverlays({ ellipses: false, centers: false });
+  // Owner map with two cells split at x = 10: each cell gets its own tint and a dark border lands on column 9.
+  const owners = new Uint32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 10; x < w; x++) owners[y * w + x] = 1;
+  backend.setOwners(owners, w, h);
+  backend.setOverlays({ voronoi: true });
+  backend.render({ zoom: 1, tx: 0, ty: 0 });
+  const px3 = await backend.readPixels();
+  const colMean = (buf, x) => { const m = [0, 0, 0]; for (let y = 0; y < h; y++) for (let c = 0; c < 3; c++) m[c] += buf[(y * w + x) * 4 + c] / h; return m; };
+  const lum = (m) => (m[0] + m[1] + m[2]) / 3;
+  const left = colMean(px3, 5), right = colMean(px3, 15), border = colMean(px3, 9), plainLeft = colMean(px, 5);
+  const tintDiff = Math.max(Math.abs(left[0] - right[0]), Math.abs(left[1] - right[1]), Math.abs(left[2] - right[2]));
+  check(`${name}: voronoi cells tinted apart, border dark`, lum(left) > lum(plainLeft) + 20 && tintDiff > 15 && lum(border) < lum(left) * 0.5, { left_lum: +lum(left).toFixed(1), right_lum: +lum(right).toFixed(1), tint_diff: +tintDiff.toFixed(1), border_lum: +lum(border).toFixed(1), plain_lum: +lum(plainLeft).toFixed(1) });
+  backend.setOverlays({ voronoi: false });
+  backend.setOwners(null, 0, 0);
+  // Ellipse rings at 1 sigma: zoomed so the rings are a few pixels across, they show up as light
+  // cyan pixels; at zoom 1 the same rings are only 2-4 pixels wide and fade to a hint.
+  backend.setOverlays({ ellipses: true });
+  backend.render({ zoom: 3, tx: -40, ty: -50 });
+  const px4 = await backend.readPixels();
+  backend.render({ zoom: 3, tx: -40, ty: -50 });
+  backend.setOverlays({ ellipses: false });
+  backend.render({ zoom: 3, tx: -40, ty: -50 });
+  const px4plain = await backend.readPixels();
+  let ring = 0; for (let i = 0; i < px4.length; i += 4) if (px4[i + 2] > 150 && px4[i + 1] > 150 && px4[i + 2] - px4plain[i + 2] > 60) ring++;
+  check(`${name}: ellipse rings drawn`, ring > 60 && ring < w * h / 3, { ring_pixels: ring });
+  // Center discs: at this view all three centers are on the canvas; count orange pixels (the
+  // Gaussians themselves are red, green, and blue, none of them orange).
+  backend.setOverlays({ centers: true });
+  backend.render({ zoom: 1.2, tx: 0, ty: 0 });
+  const px5 = await backend.readPixels();
+  backend.setOverlays({ centers: false });
+  let dots = 0; for (let i = 0; i < px5.length; i += 4) if (px5[i] > 200 && px5[i + 1] >= 90 && px5[i + 1] <= 175 && px5[i + 2] < 120) dots++;
+  check(`${name}: center discs drawn`, dots >= 20 && dots <= 200, { dot_pixels: dots });
+}
+
+window.__runTests = async () => {
+  const state = synthetic();
+  try {
+    const gpu = await WebGpuBackend.create(document.getElementById("gpu"));
+    await testBackend("webgpu", gpu, state, 64, 64);
+    gpu.dispose();
+  } catch (e) { check("webgpu backend", false, { error: String(e) }); }
+  try {
+    const gl = new WebGl2Backend(document.getElementById("gl"));
+    await testBackend("webgl2", gl, state, 64, 64);
+    gl.dispose();
+  } catch (e) { check("webgl2 backend", false, { error: String(e) }); }
+
+  // golden fixture, if present
+  const shapesRes = await fetch("/fixtures/bench_128/shapes.json");
+  if (shapesRes.ok) {
+    const shapes = await shapesRes.json();
+    const xy = await fetchBin("/fixtures/bench_128/state_6_xy.bin");
+    const cov = await fetchBin("/fixtures/bench_128/state_6_cov.bin");
+    const color = await fetchBin("/fixtures/bench_128/state_6_color.bin");
+    const rendered = await fetchBin("/fixtures/bench_128/state_6_rendered.bin");
+    const [, H, W] = shapes.state_6_rendered.shape;
+    if (xy && cov && color && rendered) {
+      const n = xy.length / 2;
+      const { scale, rotation } = covToScaleRotation(cov, n);
+      const golden = { xy, cov, scale, rotation, color };
+      for (const kind of ["webgpu", "webgl2"]) {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = W; canvas.height = H; document.body.appendChild(canvas);
+          const backend = kind === "webgpu" ? await WebGpuBackend.create(canvas) : new WebGl2Backend(canvas);
+          backend.setState(golden, W, H);
+          backend.render({ zoom: 1, tx: 0, ty: 0 });
+          const got = pixelsToPlanar(await backend.readPixels(), W, H);
+          const p = psnr(got, rendered);
+          check(`${kind}: bench_128 state 6 vs golden render`, p >= 55, { psnr_db: +p.toFixed(2), n, max_abs: +maxAbs(got, rendered).toExponential(2) });
+          backend.dispose();
+        } catch (e) { check(`${kind}: bench_128 golden`, false, { error: String(e) }); }
+      }
+      // loader round trip through scene.npz
+      try {
+        const npz = await (await fetch("/fixtures/bench_128/scene.npz")).arrayBuffer();
+        const scene = await loadNpz(npz);
+        const last = scene.states[scene.states.length - 1];
+        const dxy = maxAbs(last.xy, xy), dcol = maxAbs(last.color, color);
+        check("loadNpz(bench_128/scene.npz) final state matches state_6 bins", scene.width === W && scene.height === H && dxy < 1e-6 && dcol < 1e-6, { states: scene.states.length, dxy, dcol, width: scene.width });
+        const canvas = document.createElement("canvas");
+        canvas.width = W; canvas.height = H; document.body.appendChild(canvas);
+        const viewer = createViewer(canvas, { backend: "auto", pixelRatio: 1 });
+        await viewer.ready;
+        viewer.setScene(scene);
+        viewer.setState(scene.states.length - 1);
+        viewer.oneToOne();
+        await viewer.renderNow();
+        const got = pixelsToPlanar(await viewer.readPixels(), W, H);
+        const p = psnr(got, rendered);
+        check(`createViewer(${viewer.backendKind}) renders scene.npz final state at 1:1 vs golden`, p >= 55, { psnr_db: +p.toFixed(2), psnr_vs_image_db: viewer.psnr() });
+        // Voronoi overlay through the viewer: borders change the frame, and toggling it off restores it.
+        const t0 = performance.now();
+        viewer.setOverlay("voronoi", true);
+        const voronoiMs = performance.now() - t0;
+        await viewer.renderNow();
+        const withBorders = pixelsToPlanar(await viewer.readPixels(), W, H);
+        viewer.setOverlay("voronoi", false);
+        await viewer.renderNow();
+        const restored = pixelsToPlanar(await viewer.readPixels(), W, H);
+        const pBorders = psnr(withBorders, rendered);
+        check("viewer voronoi overlay draws cell borders and toggles off cleanly", pBorders < p - 3 && maxAbs(restored, got) === 0, { psnr_with_borders_db: +pBorders.toFixed(2), psnr_plain_db: +p.toFixed(2), owner_map_ms: +voronoiMs.toFixed(1), n });
+        // PSNR without stored render planes falls back to the CPU reference renderer.
+        const fromGolden = viewer.psnr();
+        delete last.rendered;
+        const fromFallback = viewer.psnr();
+        check("viewer.psnr() falls back to the reference render", fromGolden !== null && fromFallback !== null && Math.abs(fromFallback - fromGolden) < 0.05, { from_golden_db: fromGolden, from_fallback_db: fromFallback });
+        viewer.dispose();
+      } catch (e) { check("scene.npz through createViewer", false, { error: String(e) }); }
+    } else {
+      check("bench_128 goldens present", false, { skipped: true, note: "state_6 bins missing" });
+    }
+  } else {
+    results.push({ name: "bench_128 goldens", skipped: true });
+  }
+  return { passed, failed, results };
+};
+window.__testReady = true;
+</script></body></html>

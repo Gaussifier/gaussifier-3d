@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>End-to-end gate</title>
+  <script type="importmap">
+  { "imports": {
+      "@gaussifier/wgsl": "/packages/wgsl/dist/index.js",
+      "@gaussifier/wasm-oversampler": "/packages/wasm-oversampler/dist/index.js",
+      "@gaussifier/inference": "/packages/inference/dist/index.js",
+      "onnxruntime-web/webgpu": "/node_modules/onnxruntime-web/dist/ort.webgpu.mjs",
+      "onnxruntime-web": "/node_modules/onnxruntime-web/dist/ort.webgpu.mjs"
+  } }
+  </script>
+</head>
+<body>
+<pre id="log"></pre>
+<script type="module">
+import { createEngine } from "@gaussifier/inference";
+
+const params = new URLSearchParams(location.search);
+const fixture = params.get("fixture") ?? "bench_input_512";
+const statesList = (params.get("states") ?? "7,5").split(",").map(Number);
+const base = `/fixtures/${fixture}/`;
+const log = (s) => { document.getElementById("log").textContent += s + "\n"; console.log(s); };
+
+async function f32(name) { const r = await fetch(base + name); if (!r.ok) throw new Error("missing " + name); return new Float32Array(await r.arrayBuffer()); }
+async function json(name) { const r = await fetch(base + name); if (!r.ok) throw new Error("missing " + name); return r.json(); }
+
+function psnr(a, b, width, height, crop) {
+  // planar [3,H,W] over the crop rectangle
+  let se = 0, n = 0;
+  for (let c = 0; c < 3; c++) for (let y = 0; y < crop.h; y++) for (let x = 0; x < crop.w; x++) {
+    const i = c * width * height + y * width + x; const d = a[i] - b[i]; se += d * d; n++;
+  }
+  return 10 * Math.log10(1 / (se / n));
+}
+
+window.__runTests = async () => {
+  const results = []; let passed = 0, failed = 0;
+  const check = (name, ok, detail) => { results.push({ name, ok, ...detail }); ok ? passed++ : failed++; log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(detail)}`); };
+  try {
+    const manifest = await json("manifest.json");
+    const shapes = await json("shapes.json");
+    const [C, H, W] = shapes.image.shape;
+    const image = await f32("image.bin");
+    const crop = manifest.crop ? { w: manifest.crop[1] ?? manifest.crop.w ?? W, h: manifest.crop[0] ?? manifest.crop.h ?? H } : { w: W, h: H };
+    const t0 = performance.now();
+    const engine = await createEngine({ bundleUrl: "/apps/demo/public/models/", wasmPaths: "/node_modules/onnxruntime-web/dist/", warmup: { width: W, height: H } });
+    const input = { data: image, width: W, height: H, prepared: true };
+    const initMs = performance.now() - t0;
+    log(`engine ready in ${initMs.toFixed(0)} ms; fixture ${fixture} ${W}x${H} n=${manifest.n}; heads ${engine.headKinds}`);
+    for (const K of statesList) {
+      const t1 = performance.now();
+      const run = await engine.run(input, { states: K, count: manifest.n, seed: manifest.seed ?? 12345, includeRendered: true, profile: params.get("profile") === "1", headBackend: params.get("head") ?? undefined });
+      const wall = performance.now() - t1;
+      const p = psnr(run.final.rendered, image, run.width, run.height, crop);
+      const golden = Array.isArray(manifest.psnr_padded_db) ? manifest.psnr_padded_db[K - 1] : null;
+      const detail = { K, n: run.n, wall_ms: +wall.toFixed(1), psnr_db: +p.toFixed(3), golden_psnr_db: golden, timings: run.timings };
+      check(`e2e_K${K}_count_exact`, run.n === manifest.n, { n: run.n, expected: manifest.n });
+      check(`e2e_K${K}_psnr_within_0.5dB_of_golden`, golden == null || p >= golden - 0.5, detail);
+      check(`e2e_K${K}_finite`, run.final.xy.every(Number.isFinite) && run.final.cov.every(Number.isFinite), {});
+    }
+    // adaptive count (no pin) once at the largest K
+    const t2 = performance.now();
+    const runAuto = await engine.run(input, { states: 1, includeRendered: false });
+    // The WebGPU fp32 rate map differs from the TF32 CUDA reference at the 1e-4 level per pixel, so the
+    // truncated sum over H*W pixels moves by a few points. Allow 0.02% of N (17 at 84K) and at least 2.
+    const tol = Math.max(2, Math.ceil(manifest.n * 2e-4));
+    check("adaptive_count_within_0.02pct_of_golden", Math.abs(runAuto.n - manifest.n) <= tol, { n: runAuto.n, expected: manifest.n, tolerance: tol, wall_ms: +(performance.now() - t2).toFixed(1) });
+    engine.dispose();
+  } catch (e) {
+    failed++; results.push({ name: "exception", ok: false, error: String(e), stack: String(e.stack).slice(0, 1500) }); log("EXC " + e + "\n" + e.stack);
+  }
+  return { passed, failed, results };
+};
+window.__testReady = true;
+</script>
+</body>
+</html>

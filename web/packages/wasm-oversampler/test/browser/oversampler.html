@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>wasm-oversampler browser smoke</title>
+    <script type="importmap">
+      { "imports": { "@gaussifier/wasm-oversampler": "/packages/wasm-oversampler/dist/index.js" } }
+    </script>
+  </head>
+  <body>
+    <pre id="out">pending</pre>
+    <script type="module">
+      import { createOversampler } from "@gaussifier/wasm-oversampler";
+      const results = [];
+      const record = (name, ok, detail) => results.push({ name, ok, detail });
+      async function fetchF32(url) {
+        const r = await fetch(url);
+        if (r.status === 404) return null;
+        if (!r.ok) throw new Error(`fetch ${url}: ${r.status}`);
+        return new Float32Array(await r.arrayBuffer());
+      }
+      function missingFrom(a, b) {
+        const key = (arr, i) => `${arr[2 * i]},${arr[2 * i + 1]}`;
+        const set = new Set();
+        for (let i = 0; i < b.length / 2; i++) set.add(key(b, i));
+        let missing = 0;
+        for (let i = 0; i < a.length / 2; i++) if (!set.has(key(a, i))) missing++;
+        return missing;
+      }
+      window.__runTests = async () => {
+        try {
+          const s = await createOversampler();
+          // Fixture-free smoke test: a uniform density yields the requested count inside the frame.
+          const smoke = s.sample(new Float32Array(64 * 64).fill(1), 64, 64, 500, 7);
+          let inside = 0; for (let i = 0; i < smoke.length; i += 2) if (smoke[i] >= 0 && smoke[i] <= 1 && smoke[i + 1] >= 0 && smoke[i + 1] <= 1) inside++;
+          record("uniform 64x64 yields 500 points in the frame", smoke.length === 1000 && inside === 500, { length: smoke.length, inside });
+          const density = await fetchF32("/fixtures/refs/density_512.bin");
+          const ref = await fetchF32("/fixtures/refs/cuda_points_22500.bin");
+          if (!density || !ref) {
+            results.push({ name: "bit-exact vs CUDA at 22500", skipped: true, reason: "fixtures/refs/*.bin missing (gitignored CUDA references)" });
+          } else {
+            const t0 = performance.now();
+            const out = s.sample(density, 512, 512, 22500, 12345);
+            const ms = performance.now() - t0;
+            record("length", out.length === 45000, out.length);
+            const missing = missingFrom(ref, out);
+            record("bit-exact vs CUDA at 22500", missing === 0, { missing, ms: +ms.toFixed(2) });
+          }
+        } catch (e) {
+          record("run", false, String(e));
+        }
+        const failed = results.filter((r) => !r.ok && !r.skipped).length;
+        const summary = { passed: results.length - failed, failed, results };
+        document.getElementById("out").textContent = JSON.stringify(summary, null, 1);
+        return summary;
+      };
+      window.__testReady = true;
+    </script>
+  </body>
+</html>

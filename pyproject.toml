@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gaussifier-sampler"
+version = "0.11.1"
+description = "Inference-only first-stage Gaussifier sampler."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=1.26,<3",
+    "Pillow>=10",
+    "pyyaml>=6.0.3",
+    "torch==2.12.*",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    # patchelf: required by cpp_inference/scripts/build_torch_free_aoti.sh
+    # to retarget the AOTI wrapper's DT_NEEDED entries to our shim.
+    "patchelf>=0.17",
+    "jsonschema>=4.23",
+    "matplotlib>=3.9",
+]
+
+[project.optional-dependencies]
+# Faster inference via TensorRT-compiled engines. CUDA + driver-version
+# specific; see README for build instructions.
+tensorrt = [
+    "tensorrt==10.16.1.11",
+    "torch-tensorrt==2.12.0",
+]
+# Browser bundle export: ONNX graphs and CPU verification.
+web = [
+    "onnx>=1.17",
+    "onnxscript>=0.2",
+    "onnxruntime>=1.20",
+]
+
+[project.scripts]
+gaussifier-sample = "gaussifier_sampler.cli:main"
+gaussifier-sample-build-trt = "gaussifier_sampler.tensorrt_engine:_cli"
+gaussifier-sample-build-aoti = "gaussifier_sampler.aoti_engine:_cli"
+gaussifier-planar = "gaussifier_sampler.planar:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gaussifier_sampler"]
+
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gaussifier_sampler"]

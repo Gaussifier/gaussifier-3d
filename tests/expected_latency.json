@@ -1,0 +1,16 @@
+{
+  "trt_aoti_fused": {
+    "max_ms": 11.3861,
+    "mean_ms": 11.1869,
+    "min_ms": 11.1383,
+    "p99_ms": 11.3861,
+    "stddev_ms": 0.0244
+  },
+  "trt_aoti_fused_k7": {
+    "max_ms": 15.1072,
+    "mean_ms": 14.886,
+    "min_ms": 14.8569,
+    "p99_ms": 15.1072,
+    "stddev_ms": 0.0284
+  }
+}

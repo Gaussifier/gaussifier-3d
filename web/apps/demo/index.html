@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script type="importmap">{ "imports": { "onnxruntime-web/webgpu": "./ort/ort.webgpu.mjs", "onnxruntime-web": "./ort/ort.webgpu.mjs" } }</script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Gaussifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+</head>
+<body>
+<div id="app">
+  <aside>
+    <div class="brand"><span class="name">Gaussifier</span><span id="gpuPill" class="pill" title="Runs take well under a second on a discrete GPU, a few seconds on an integrated one, and minutes on a software renderer.">checking gpu</span></div>
+    <section>
+      <div id="imageDrop" title="Pick an image">
+        <img id="thumb" alt="" />
+        <div class="meta"><div id="imageName">No image</div><div id="imageDims">Click to pick an image</div></div>
+        <input id="image" type="file" accept="image/*" hidden />
+      </div>
+      <div id="samples" role="listbox" aria-label="Kodak sample images" title="Kodak test images; one is picked at random when the page opens"></div>
+      <div class="slider" title="Correction steps applied after the initializer. The model is trained for 6."><span>Refine</span><input id="refine" type="range" min="0" max="11" value="6" aria-label="Refinements" /><span id="refineValue" class="v">6</span></div>
+      <div class="slider" title="Gaussian count as a multiple of the model's own count, trunc(sum(rate)), from ×¼ to ×4. The model is calibrated to ×1, so other counts score lower."><span>Count</span><input id="count" type="range" min="-100" max="100" value="0" aria-label="Gaussian count scale" /><span id="countValue" class="v">auto</span></div>
+      <div id="runStatus" class="muted">Loading the model and the sample image…</div>
+      <div class="muted note">This WebGPU version is slower than the C++ TensorRT pipeline behind the paper's timings.</div>
+    </section>
+    <section id="result">
+      <div class="stats">
+        <div class="stat"><div class="k">Gaussians</div><div class="v" id="statN">—</div></div>
+        <div class="stat"><div class="k">PSNR</div><div class="v"><span id="psnr">—</span></div></div>
+      </div>
+      <div id="shownRow" class="slider" hidden title="Every refinement of the run is kept; drag to compare them. Export saves the shown one."><span>Refinement</span><input id="shown" type="range" min="0" max="0" value="0" aria-label="Shown refinement" /><span id="shownValue" class="v">0</span></div>
+      <div class="toggles">
+        <label class="toggle"><span>Source image</span><input id="ov-image" type="checkbox" /><i></i></label>
+        <label class="toggle"><span>Difference ×4</span><input id="ov-diff" type="checkbox" /><i></i></label>
+        <label class="toggle"><span>Density</span><input id="ov-density" type="checkbox" /><i></i></label>
+        <label class="toggle"><span>Voronoi cells</span><input id="ov-voronoi" type="checkbox" /><i></i></label>
+        <label class="toggle"><span>Centers</span><input id="ov-centers" type="checkbox" /><i></i></label>
+        <label class="toggle"><span>Ellipses</span><input id="ov-ellipses" type="checkbox" /><i></i></label>
+      </div>
+      <button id="export" class="btn">Export .splat2d</button>
+      <div id="status" class="muted" hidden></div>
+    </section>
+    <details>
+      <summary>Open a saved scene</summary>
+      <div id="drop">Drop a .splat2d or .npz here, or <button id="pick" class="link" type="button">pick files</button><input id="file" type="file" accept=".splat2d,.npz,.npy" multiple hidden /></div>
+    </details>
+  </aside>
+  <main id="stage">
+    <canvas id="view"></canvas>
+    <div id="empty"><h2>Drop an image here</h2></div>
+    <div id="live" hidden>refinement 0 / 6</div>
+    <div id="hint">wheel zoom · drag pan · f fit · 1 actual size · [ ] refinements</div>
+  </main>
+</div>
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>WGSL head parity</title>
+<script type="importmap">{ "imports": {
+  "@gaussifier/wgsl": "/packages/wgsl/dist/index.js",
+  "@gaussifier/inference": "/packages/inference/dist/index.js",
+  "@gaussifier/wasm-oversampler": "/packages/wasm-oversampler/dist/index.js",
+  "onnxruntime-web/webgpu": "/node_modules/onnxruntime-web/dist/ort.webgpu.mjs",
+  "onnxruntime-web": "/node_modules/onnxruntime-web/dist/ort.webgpu.mjs" } }</script>
+</head><body><pre id="log"></pre>
+<script type="module">
+import { readBuffer, uploadStorage } from "@gaussifier/wgsl";
+import { internals } from "@gaussifier/inference";
+const { configureOrt, createSession, ortDevice, runGpu, disposeOutputs, loadBundle, WgslHead, parseHeadWeights, DEFAULT_CONV } = internals;
+const params = new URLSearchParams(location.search);
+const log = (s) => { document.getElementById("log").textContent += s + "\n"; console.log(s); };
+async function f32(url) { const r = await fetch(url); if (!r.ok) throw new Error("missing " + url); return new Float32Array(await r.arrayBuffer()); }
+function diff(a, b) { let mx = 0, mean = 0; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > mx) mx = d; mean += d; } return { max: +mx.toExponential(2), mean: +(mean / a.length).toExponential(2) }; }
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return +s[Math.floor(s.length / 2)].toFixed(2); };
+window.__runTests = async () => {
+  const results = []; let passed = 0, failed = 0;
+  const check = (name, ok, detail) => { results.push({ name, ok, ...detail }); ok ? passed++ : failed++; log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(detail)}`); };
+  try {
+    configureOrt({ wasmPaths: "/node_modules/onnxruntime-web/dist/", logLevel: "error" });
+    const bundle = await loadBundle("/apps/demo/public/models/");
+    const get = (k) => bundle.models.get(k);
+    const headDyn = await createSession(get("correction_head:dynamic"));
+    const headStatic = await createSession(get("correction_head:static512"), { graphCapture: true });
+    const device = await ortDevice();
+    const gpuErrors = []; device.addEventListener("uncapturederror", (e) => { gpuErrors.push(String(e.error.message).slice(0, 300)); log("GPU ERROR " + String(e.error.message).slice(0, 300)); });
+    log("limits: bindingSize=" + device.limits.maxStorageBufferBindingSize + " bufferSize=" + device.limits.maxBufferSize + " wgStorage=" + device.limits.maxComputeWorkgroupStorageSize + " wgPerDim=" + device.limits.maxComputeWorkgroupsPerDimension);
+    const { layout, weights } = parseHeadWeights(get("correction_head_wgsl_layout:any"), get("correction_head_wgsl:any"));
+    const head = new WgslHead(device, layout, weights);
+    const upload = (arr) => uploadStorage(device, arr, "features");
+    const runWgsl = async (buf, W, H) => { const d = await head.run(buf, W, H); await device.queue.onSubmittedWorkDone(); return new Float32Array(await readBuffer(device, d, 8 * W * H * 4)); };
+    const runOrt = async (sess, buf, W, H) => { const outs = await runGpu(sess, "features", buf, [1, 17, H, W]); await device.queue.onSubmittedWorkDone(); const data = new Float32Array(await readBuffer(device, outs[0].buffer, 8 * W * H * 4)); disposeOutputs(outs); return data; };
+    // 1. parity on the 128 goldens
+    for (let k = 0; k < 6; k++) {
+      const feat = await f32(`/fixtures/bench_128/state_${k}_features.bin`); const gold = await f32(`/fixtures/bench_128/state_${k}_delta.bin`);
+      const buf = upload(feat);
+      const w = await runWgsl(buf, 128, 128); const o = await runOrt(headDyn, buf, 128, 128); buf.destroy();
+      const dg = diff(w, gold), dOrt = diff(o, gold), dwo = diff(w, o);
+      check(`parity128_k${k}`, dg.max <= 1e-2 && dwo.max <= 5e-3, { wgsl_vs_golden: dg, ort_vs_golden: dOrt, wgsl_vs_ort: dwo });
+    }
+    // 2. parity at 512 against the CUDA reference
+    const hIn = await f32("/packages/inference/test/fixtures/refs/head_in.bin"); const hRef = await f32("/packages/inference/test/fixtures/refs/head_ref.bin");
+    const buf512 = upload(hIn);
+    const w512 = await runWgsl(buf512, 512, 512); const o512 = await runOrt(headStatic, buf512, 512, 512);
+    check("parity512", diff(w512, hRef).max <= 1e-2 && diff(w512, o512).max <= 5e-3, { wgsl_vs_ref: diff(w512, hRef), ort_vs_ref: diff(o512, hRef), wgsl_vs_ort: diff(w512, o512), dispatches: head.dispatchCount, gpuErrors: gpuErrors.slice(0, 3) });
+    // 3. timing. A submit-and-wait round trip costs about 2 ms on its own, so the WGSL head is timed
+    // with ten calls per submit and the empty round trip subtracted; the ORT session runs one call
+    // at a time and is reported as measured. The 64x64 figure is the per-call floor (dispatch
+    // overhead), since its arithmetic is negligible.
+    const time = async (fn, runs) => { for (let i = 0; i < 3; i++) await fn(); const t = []; for (let i = 0; i < runs; i++) { const t0 = performance.now(); await fn(); t.push(performance.now() - t0); } return median(t); };
+    const submitAndWait = async (record) => { const enc = device.createCommandEncoder(); record(enc); device.queue.submit([enc.finish()]); await device.queue.onSubmittedWorkDone(); };
+    const empty = await time(() => submitAndWait(() => {}), 10);
+    const perCall = async (buf, size) => +((await time(() => submitAndWait((enc) => { for (let i = 0; i < 10; i++) head.record(enc, buf, size, size); }), 5) - empty) / 10).toFixed(2);
+    const wgsl512 = await perCall(buf512, 512);
+    const small = uploadStorage(device, new Float32Array(17 * 64 * 64));
+    const wgsl64 = await perCall(small, 64);
+    small.destroy();
+    head.prepare(512, 512);
+    const ort512 = +(await time(async () => { const outs = await runGpu(headStatic, "features", buf512, [1, 17, 512, 512]); await device.queue.onSubmittedWorkDone(); disposeOutputs(outs); }, 10)).toFixed(2);
+    check("timing512", true, { wgsl_gpu_ms_per_call: wgsl512, wgsl_floor_ms_at_64: wgsl64, ort_static_capture_ms: ort512, empty_submit_ms: +empty.toFixed(2), dispatches: head.dispatchCount, conv: DEFAULT_CONV });
+    // 4. optional sweep of conv tilings
+    if (params.get("sweep") === "1" || params.get("sweep") === "2") {
+      const cfgs = params.get("sweep") === "2" ? [
+        { CI: 4, CO: 8, TX: 16, TY: 4, PX: 1, PY: 4 }, { CI: 4, CO: 16, TX: 16, TY: 4, PX: 1, PY: 4 }, { CI: 8, CO: 8, TX: 16, TY: 4, PX: 1, PY: 4 },
+        { CI: 4, CO: 8, TX: 16, TY: 8, PX: 1, PY: 4 }, { CI: 4, CO: 8, TX: 32, TY: 4, PX: 1, PY: 4 }, { CI: 4, CO: 8, TX: 16, TY: 4, PX: 1, PY: 8 },
+        { CI: 4, CO: 8, TX: 16, TY: 2, PX: 1, PY: 8 }, { CI: 4, CO: 4, TX: 16, TY: 4, PX: 1, PY: 4 }, { CI: 4, CO: 8, TX: 16, TY: 16, PX: 1, PY: 1 },
+        { CI: 4, CO: 8, TX: 32, TY: 8, PX: 1, PY: 2 }, { CI: 2, CO: 8, TX: 16, TY: 4, PX: 1, PY: 4 },
+      ] : [
+        { CI: 4, CO: 8, TX: 8, TY: 4, PX: 2, PY: 4 }, { CI: 8, CO: 8, TX: 8, TY: 4, PX: 2, PY: 4 }, { CI: 2, CO: 8, TX: 8, TY: 4, PX: 2, PY: 4 },
+        { CI: 4, CO: 16, TX: 8, TY: 4, PX: 2, PY: 2 }, { CI: 4, CO: 16, TX: 8, TY: 8, PX: 2, PY: 2 }, { CI: 4, CO: 8, TX: 8, TY: 8, PX: 2, PY: 2 },
+        { CI: 4, CO: 8, TX: 16, TY: 4, PX: 1, PY: 4 }, { CI: 4, CO: 4, TX: 8, TY: 4, PX: 2, PY: 4 }, { CI: 8, CO: 16, TX: 8, TY: 8, PX: 2, PY: 2 },
+        { CI: 4, CO: 8, TX: 16, TY: 8, PX: 1, PY: 2 }, { CI: 4, CO: 8, TX: 8, TY: 4, PX: 4, PY: 4 },
+      ];
+      for (const cfg of cfgs) {
+        try {
+          const h2 = new WgslHead(device, layout, weights, cfg); h2.prepare(512, 512);
+          const ms = +((await time(() => submitAndWait((enc) => { for (let i = 0; i < 10; i++) h2.record(enc, buf512, 512, 512); }), 5) - empty) / 10).toFixed(2);
+          const out = new Float32Array(await readBuffer(device, h2.record(device.createCommandEncoder(), buf512, 512, 512), 8 * 512 * 512 * 4));
+          check("sweep_" + JSON.stringify(cfg), true, { gpu_ms_per_call: ms, max_vs_default: diff(out, w512).max }); h2.dispose();
+        } catch (e) { check("sweep_" + JSON.stringify(cfg), true, { error: String(e).slice(0, 200) }); }
+      }
+    }
+    buf512.destroy(); head.dispose(); await headDyn.release(); await headStatic.release();
+  } catch (e) { failed++; results.push({ name: "exception", ok: false, error: String(e), stack: String(e.stack).slice(0, 1500) }); log("EXC " + e + "\n" + e.stack); }
+  return { passed, failed, results };
+};
+window.__testReady = true;
+</script></body></html>

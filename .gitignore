@@ -1,0 +1,27 @@
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.coverage
+/artifacts/
+
+trt_engines/
+trt_engines_dynamo/
+aoti_cont4/
+trt_v050/
+tensorrt_sdk/
+
+node_modules/
+web/fixtures/**/*.bin
+web/fixtures/**/*.npz
+
+# Weights come from the GitHub release (see README), not from git
+src/gaussifier_sampler/weights/*.pt
+
+# Faster-GS, cloned and built by scripts/install_fastergs.py
+third_party/faster-gaussian-splatting/
+build/fastergs/

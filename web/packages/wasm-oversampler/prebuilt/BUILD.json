@@ -1,0 +1,25 @@
+{
+  "emscripten": "6.0.9",
+  "flags": [
+    "-O3",
+    "-msimd128",
+    "-std=c++17",
+    "-fno-exceptions",
+    "-sMODULARIZE=1",
+    "-sEXPORT_ES6=1",
+    "-sENVIRONMENT=web,node",
+    "-sALLOW_MEMORY_GROWTH=1",
+    "-sEXPORTED_FUNCTIONS=_gs_density_to_points,_malloc,_free",
+    "-sEXPORTED_RUNTIME_METHODS=HEAPF32"
+  ],
+  "built": "2026-09-19T21:45:16.187Z",
+  "inputs": {
+    "src/gaussifier_sampler/native_sampler_backend/cpu/csrc/density_points.cpp": "d8e3a0eaae47cd8e108d2845fb11f3ca5959a5dd54a672a9094536373a74d804",
+    "web/packages/wasm-oversampler/tools/transform.py": "d1e2bffc59ea66717d22454f7cbd58d2e37f1b654bcc4c87bf3b275acd94a638",
+    "web/packages/wasm-oversampler/build.sh": "5cc0bfa4d7ef74794947c56342d222c4ae58ca44d5a949dfb6d2c495b9809cfb"
+  },
+  "outputs": {
+    "oversampler.mjs": "7b1a475300613d014c8780b942e2400ba4d468dab9a2cb9bed84959f75373ff6",
+    "oversampler.wasm": "d4695ec1c3f8eef3d0453f824d2cd47eddf22d18229903cf6d27a36bce30c86f"
+  }
+}

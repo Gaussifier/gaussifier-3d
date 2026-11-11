@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Gaussifier/gaussifier/schemas/runtime_bundle.schema.json",
+  "title": "Gaussifier sampler runtime bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "model_bundle_sha256",
+    "runtime_version",
+    "python",
+    "cpp",
+    "backends",
+    "regressions"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "model_bundle_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "runtime_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "python": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package",
+        "requires",
+        "pytorch",
+        "entrypoint",
+        "bundled_model_artifact"
+      ],
+      "properties": {
+        "package": { "const": "gaussifier-sampler" },
+        "requires": { "type": "string", "minLength": 1 },
+        "pytorch": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.\\*$" },
+        "entrypoint": { "const": "gaussifier-sample" },
+        "bundled_model_artifact": {
+          "type": "string",
+          "pattern": "^src/gaussifier_sampler/weights/[^/]+\\.pt$"
+        }
+      }
+    },
+    "cpp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executable", "linkage", "torch_free_scope"],
+      "properties": {
+        "executable": { "const": "gaussifier_infer" },
+        "linkage": { "const": "libtorch-linked" },
+        "torch_free_scope": { "const": "correction-head component only" }
+      }
+    },
+    "backends": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/backend" }
+    },
+    "regressions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/regression" }
+    }
+  },
+  "$defs": {
+    "backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "role", "implementation", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "role": { "enum": ["reference", "production", "point-placement"] },
+        "implementation": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["supported", "experimental", "disabled"] }
+      }
+    },
+    "absolute_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "tolerance"],
+      "properties": {
+        "baseline": { "type": "number" },
+        "tolerance": { "type": "number", "minimum": 0 }
+      }
+    },
+    "factor_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "max_factor"],
+      "properties": {
+        "baseline": { "type": "number", "minimum": 0 },
+        "max_factor": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fixture", "profile", "parameters", "metrics"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "fixture": { "type": "string", "minLength": 1 },
+        "profile": { "type": "string", "minLength": 1 },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["points", "states"],
+          "properties": {
+            "points": {
+              "oneOf": [
+                { "const": "auto" },
+                { "type": "integer", "minimum": 1 }
+              ]
+            },
+            "states": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "psnr_db",
+            "mean_latency_ms",
+            "p99_latency_ms",
+            "stddev_latency_ms"
+          ],
+          "properties": {
+            "psnr_db": { "$ref": "#/$defs/absolute_metric" },
+            "mean_latency_ms": { "$ref": "#/$defs/absolute_metric" },
+            "p99_latency_ms": { "$ref": "#/$defs/absolute_metric" },
+            "stddev_latency_ms": { "$ref": "#/$defs/factor_metric" }
+          }
+        }
+      }
+    }
+  }
+}

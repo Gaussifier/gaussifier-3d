@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "model_bundle_sha256": "8d29187cbd32bd40b5b3bfc1f8dc7dcdfc58af3577a70e7952cef52ee01d9252",
+  "runtime_version": "0.11.1",
+  "python": {
+    "package": "gaussifier-sampler",
+    "requires": ">=3.12,<3.13",
+    "pytorch": "2.12.*",
+    "entrypoint": "gaussifier-sample",
+    "bundled_model_artifact": "src/gaussifier_sampler/weights/gaussifier_best.pt"
+  },
+  "cpp": {
+    "executable": "gaussifier_infer",
+    "linkage": "libtorch-linked",
+    "torch_free_scope": "correction-head component only"
+  },
+  "backends": [
+    {
+      "id": "torchscript-eager",
+      "role": "reference",
+      "implementation": "TorchScript models with eager PyTorch orchestration",
+      "status": "supported"
+    },
+    {
+      "id": "trt-aoti-fused",
+      "role": "production",
+      "implementation": "TensorRT forward map with AOTI correction head",
+      "status": "supported"
+    },
+    {
+      "id": "native-voronoi",
+      "role": "point-placement",
+      "implementation": "repository-owned native Voronoi snapshot",
+      "status": "supported"
+    }
+  ],
+  "regressions": [
+    {
+      "id": "production-512",
+      "fixture": "bench_input_512",
+      "profile": "trt_aoti_fused",
+      "parameters": {
+        "points": "auto",
+        "states": 5
+      },
+      "metrics": {
+        "psnr_db": {
+          "baseline": 37.2323,
+          "tolerance": 0.05
+        },
+        "mean_latency_ms": {
+          "baseline": 11.1869,
+          "tolerance": 1.0
+        },
+        "p99_latency_ms": {
+          "baseline": 11.3861,
+          "tolerance": 2.0
+        },
+        "stddev_latency_ms": {
+          "baseline": 0.0244,
+          "max_factor": 2.5
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@gaussifier/inference",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./dist/index.js" },
+  "scripts": { "build": "tsc -b", "test": "vitest run --passWithNoTests" },
+  "dependencies": {
+    "@gaussifier/wgsl": "*",
+    "@gaussifier/wasm-oversampler": "*",
+    "onnxruntime-web": "^1.30.0"
+  }
+}

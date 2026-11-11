@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Gaussifier/gaussifier/schemas/web_bundle.schema.json",
+  "title": "Gaussifier web bundle manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "runtime_version", "checkpoint_sha256", "model", "files", "io", "sampler", "renderer", "input"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "runtime_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["correction_iterations", "correction_predict_xy", "correction_output_channels", "correction_input_channels", "correction_xy_step_pixels", "decoder_density_aware"],
+      "properties": {
+        "correction_iterations": {"type": "integer", "minimum": 1},
+        "correction_predict_xy": {"const": true},
+        "correction_output_channels": {"const": 8},
+        "correction_input_channels": {"const": 17},
+        "correction_xy_step_pixels": {"const": 2.56},
+        "decoder_density_aware": {"const": false}
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "bytes", "role", "precision", "shape"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+\\.(onnx|bin|json)$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "bytes": {"type": "integer", "minimum": 1},
+          "role": {"enum": ["forward_map", "correction_head", "correction_head_wgsl", "correction_head_wgsl_layout"]},
+          "precision": {"const": "f32"},
+          "shape": {"enum": ["dynamic", "static512", "any"]}
+        }
+      }
+    },
+    "io": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["forward_map", "correction_head"],
+      "properties": {
+        "forward_map": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input", "outputs"],
+          "properties": {
+            "input": {"const": "image"},
+            "outputs": {"type": "array", "items": {"type": "string"}, "minItems": 5, "maxItems": 5}
+          }
+        },
+        "correction_head": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input", "output"],
+          "properties": {"input": {"const": "features"}, "output": {"const": "delta"}}
+        }
+      }
+    },
+    "sampler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oversample", "merge_rounds", "per_round_fraction", "knn_k", "lloyd_iters", "tile_cap", "seed_default"],
+      "properties": {
+        "oversample": {"const": 1.5},
+        "merge_rounds": {"const": 6},
+        "per_round_fraction": {"type": "number", "minimum": 0.333, "maximum": 0.334},
+        "knn_k": {"const": 8},
+        "lloyd_iters": {"const": 3},
+        "tile_cap": {"const": 32},
+        "seed_default": {"const": 12345}
+      }
+    },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tile", "large_tile_threshold", "alpha_cutoff", "capacity"],
+      "properties": {
+        "tile": {"const": 16},
+        "large_tile_threshold": {"const": 32},
+        "alpha_cutoff": {"type": "number", "minimum": 0.00392156, "maximum": 0.00392157},
+        "capacity": {"const": "max(8N,4096)"}
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pad_multiple", "pad_mode"],
+      "properties": {"pad_multiple": {"const": 32}, "pad_mode": {"const": "edge"}}
+    }
+  }
+}

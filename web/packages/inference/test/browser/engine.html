@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>inference engine tests</title>
+<script type="importmap">
+{ "imports": {
+  "@gaussifier/wgsl": "/packages/wgsl/dist/index.js",
+  "@gaussifier/inference": "/packages/inference/dist/index.js",
+  "@gaussifier/wasm-oversampler": "/packages/wasm-oversampler/dist/index.js",
+  "onnxruntime-web/webgpu": "/node_modules/onnxruntime-web/dist/ort.webgpu.mjs"
+} }
+</script></head>
+<body><pre id="log"></pre>
+<script type="module" src="./engine-tests.js"></script>
+</body></html>

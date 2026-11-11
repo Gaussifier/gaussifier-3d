@@ -1,0 +1,20 @@
+{
+  "name": "@gaussifier/viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./element": "./dist/element.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "build:bundle": "vite build --config vite.lib.config.ts",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@gaussifier/wgsl": "*"
+  }
+}

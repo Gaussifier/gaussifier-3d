@@ -1,0 +1,68 @@
+{
+ "name": "bench_input_512",
+ "source_image": "tests/fixtures/bench_input_512.png",
+ "crop": {
+  "w": 512,
+  "h": 512,
+  "requested": null
+ },
+ "padded": {
+  "width": 512,
+  "height": 512
+ },
+ "n": 84129,
+ "n_max": 126194,
+ "seed": 12345,
+ "states": 7,
+ "store_head": false,
+ "checkpoint_sha256": "ceacdf9c9465b09bc932787848a8dc2a177757db466f6b1bd2d26e9813b7e841",
+ "torch": "2.12.0+cu130",
+ "device": "NVIDIA GeForce RTX 5090",
+ "psnr_padded_db": [
+  19.074634234895367,
+  31.710848290381392,
+  35.129160021860095,
+  36.53836571312135,
+  37.218342262842796,
+  37.54380982177592,
+  37.73251513759738
+ ],
+ "psnr_crop_db": [
+  19.074634234895367,
+  31.710848290381392,
+  35.129160021860095,
+  36.53836571312135,
+  37.218342262842796,
+  37.54380982177592,
+  37.73251513759738
+ ],
+ "envelope": {
+  "runs": 5,
+  "p50_px": 0.0,
+  "p95_px": 0.125,
+  "p99_px": 0.25,
+  "max_px": 2.8885550498962402,
+  "fraction_over_half_px": 0.00041305614286102355
+ },
+ "consistency": {
+  "forward_map_rerun_max_abs_diff": 0.0,
+  "owner_rerun_mass_max_abs_diff": 1.9073486328125e-06,
+  "owner_rerun_cells_drifted": 0,
+  "latent_replay_max_abs_diff": 0.0,
+  "cov_xy_replay_max_abs_diff": 0.0
+ },
+ "timings_ms": {
+  "load": 443.99,
+  "forward_map": 221.81,
+  "oversample": 12.92,
+  "merge": 52.9,
+  "envelope": 784.02,
+  "production_sample": 2038.77,
+  "checks": 68.75,
+  "write": 950.21
+ },
+ "files": {
+  "shapes": "shapes.json",
+  "scene": "scene.npz"
+ }
+}

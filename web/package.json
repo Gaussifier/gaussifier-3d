@@ -1,0 +1,32 @@
+{
+  "name": "gaussifier-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Browser inference engine and 2D Gaussian splat viewer for gaussifier-sampler",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/wgsl packages/wasm-oversampler packages/inference packages/viewer packages/planar",
+    "build:wasm": "npm run build:wasm --workspace packages/wasm-oversampler",
+    "build:bundle": "npm run build:bundle --workspace packages/viewer",
+    "build:demo": "npm run build --workspace apps/demo",
+    "test": "npm run test --workspaces --if-present",
+    "test:browser": "node tools/browser-run.mjs --all",
+    "check:demo": "node tools/demo-check.mjs",
+    "serve": "node tools/server.mjs --dir apps/demo/dist --http 8080 --https 8443 --host 0.0.0.0",
+    "build:planar-demo": "npm run build --workspace apps/planar-demo",
+    "check:planar-demo": "node tools/planar-demo-check.mjs",
+    "serve:planar-demo": "node tools/server.mjs --dir apps/planar-demo/dist --http 8081 --https 8444 --host 0.0.0.0",
+    "check:planar-demo-ui": "node tools/planar-demo-ui-check.mjs",
+    "check:planar-demo-loading": "node tools/planar-demo-loading-check.mjs"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.60",
+    "puppeteer-core": "^25.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

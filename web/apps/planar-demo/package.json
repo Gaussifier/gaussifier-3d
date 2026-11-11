@@ -1,0 +1,24 @@
+{
+  "name": "@gaussifier/planar-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare-assets": "node scripts/prepare-assets.mjs",
+    "predev": "node scripts/prepare-assets.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/prepare-assets.mjs",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@gaussifier/inference": "*",
+    "@gaussifier/planar": "*",
+    "@gaussifier/wasm-oversampler": "*",
+    "@playcanvas/splat-transform": "3.10.3",
+    "playcanvas": "2.23.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

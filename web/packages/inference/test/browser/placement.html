@@ -1,0 +1,163 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>placement tests</title>
+<script type="importmap">{"imports":{"@gaussifier/wgsl":"/packages/wgsl/dist/index.js","@gaussifier/wasm-oversampler":"/packages/wasm-oversampler/dist/index.js","@gaussifier/inference":"/packages/inference/dist/index.js"}}</script>
+</head><body><pre id="log"></pre>
+<script type="module">
+import { readBuffer, uploadStorage, createStorageBuffer } from "@gaussifier/wgsl";
+import { createPlacement, oversampleCount, jfaSchedule } from "/packages/inference/dist/placement/index.js";
+
+const results = [];
+const log = (s) => { document.getElementById("log").textContent += s + "\n"; console.log(s); };
+function record(name, pass, details) { results.push({ name, pass: !!pass, ...details }); log(`${pass ? "PASS" : "FAIL"} ${name} ${JSON.stringify(details)}`); }
+function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const readF32 = async (d, b, n) => new Float32Array(await readBuffer(d, b, n * 4));
+const readU32 = async (d, b, n) => new Uint32Array(await readBuffer(d, b, n * 4));
+const readI32 = async (d, b, n) => new Int32Array(await readBuffer(d, b, n * 4));
+async function submit(device, encoder) { const t = performance.now(); device.queue.submit([encoder.finish()]); await device.queue.onSubmittedWorkDone(); return performance.now() - t; }
+function toPixel(pts, n, W, H) { const out = new Float32Array(n * 2); for (let i = 0; i < n; i++) { out[2*i] = Math.min(Math.max(pts[2*i] * W, 0), W - 1e-3); out[2*i+1] = Math.min(Math.max(pts[2*i+1] * H, 0), H - 1e-3); } return out; }
+function bruteOwner(pix, n, W, H) { const owner = new Int32Array(W * H); const dist = new Float64Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const cx = x + 0.5, cy = y + 0.5; let bd = Infinity, bi = -1;
+    for (let i = 0; i < n; i++) { const dx = cx - pix[2*i], dy = cy - pix[2*i+1]; const d = dx*dx + dy*dy; if (d < bd) { bd = d; bi = i; } }
+    owner[y*W+x] = bi; dist[y*W+x] = bd; } return { owner, dist }; }
+function compareOwner(got, ref, pix, W, H) { let wrong = 0, ties = 0;
+  for (let p = 0; p < W * H; p++) { if (got[p] === ref.owner[p]) continue; const o = got[p]; if (o < 0) { wrong++; continue; }
+    const cx = (p % W) + 0.5, cy = Math.floor(p / W) + 0.5; const dx = cx - pix[2*o], dy = cy - pix[2*o+1]; const d = dx*dx + dy*dy;
+    if (Math.abs(d - ref.dist[p]) <= 1e-5 * Math.max(ref.dist[p], 1e-12)) ties++; else wrong++; }
+  return { wrong, ties }; }
+function scatterMass(owner, density, n) { const m = new Float64Array(n); for (let p = 0; p < owner.length; p++) { const o = owner[p]; const d = density[p]; if (o >= 0 && d > 0) m[o] += d; } return m; }
+function refRank(mass, n) { const idx = Array.from({ length: n }, (_, i) => i); idx.sort((a, b) => (mass[a] - mass[b]) || (a - b)); const rank = new Uint32Array(n); idx.forEach((i, r) => rank[i] = r); return { rank, idxOfRank: Uint32Array.from(idx) }; }
+function refAdjacency(owner, rank, n, W, H) { const nb = Array.from({ length: n }, () => new Set());
+  const ins = (a, b) => { nb[a].add(b); }; 
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const a = owner[y*W+x]; if (a < 0) continue;
+    if (x + 1 < W) { const b = owner[y*W+x+1]; if (b >= 0 && a !== b) { ins(a, b); ins(b, a); } }
+    if (y + 1 < H) { const b = owner[(y+1)*W+x]; if (b >= 0 && a !== b) { ins(a, b); ins(b, a); } } }
+  const slot = new Uint32Array(n * 8).fill(0xFFFFFFFF);
+  for (let i = 0; i < n; i++) { const ranks = [...nb[i]].map((j) => rank[j]).sort((p, q) => p - q); for (let k = 0; k < Math.min(8, ranks.length); k++) slot[i*8+k] = ranks[k]; }
+  return slot; }
+function refMatching(rank, idxOfRank, slot, n, remove) { const alive = new Uint32Array(n).fill(1), matched = new Uint32Array(n), target = new Int32Array(n).fill(-1);
+  for (let col = 0; col < 8; col++) { const tmin = new Uint32Array(n).fill(0xFFFFFFFF); const proposed = new Int32Array(n).fill(-1);
+    for (let i = 0; i < n; i++) { const proposer = rank[i] < remove && alive[i] === 1 && matched[i] === 0; const sv = slot[i*8+col]; const t = sv === 0xFFFFFFFF ? i : idxOfRank[sv];
+      if (proposer && t !== i && alive[t] === 1) { proposed[i] = t; if (rank[i] < tmin[t]) tmin[t] = rank[i]; } }
+    for (let i = 0; i < n; i++) { const t = proposed[i]; if (t >= 0 && rank[i] === tmin[t]) { target[i] = t; matched[i] = 1; alive[i] = 0; } } }
+  const fb = idxOfRank[n - 1];
+  for (let i = 0; i < n; i++) if (rank[i] < remove && matched[i] === 0 && alive[i] === 1 && fb !== i) { target[i] = fb; matched[i] = 1; alive[i] = 0; }
+  return { alive, matched, target }; }
+function refMergeNew(pts, mass, matched, target, alive, n) { const wx = new Float64Array(n), wy = new Float64Array(n), mp = new Float64Array(n);
+  for (let t = 0; t < n; t++) { wx[t] = pts[2*t] * mass[t]; wy[t] = pts[2*t+1] * mass[t]; mp[t] = mass[t]; }
+  for (let i = 0; i < n; i++) if (matched[i] === 1 && target[i] >= 0) { const t = target[i]; wx[t] += pts[2*i] * mass[i]; wy[t] += pts[2*i+1] * mass[i]; mp[t] += mass[i]; }
+  const out = []; for (let t = 0; t < n; t++) if (alive[t] === 1) { if (mp[t] > 1e-8) out.push(wx[t] / mp[t], wy[t] / mp[t]); else out.push(pts[2*t], pts[2*t+1]); }
+  return Float64Array.from(out); }
+function syntheticDensity(W, H) { const d = new Float32Array(W * H); let s = 0; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const v = 1 + 0.9 * Math.sin(2 * Math.PI * 3 * x / W) * Math.cos(2 * Math.PI * 2 * y / H); d[y*W+x] = v; s += v; } const m = s / (W * H); for (let i = 0; i < d.length; i++) d[i] /= m; return d; }
+function nnStats(a, b, na, nb, W) { const d = new Float64Array(na); for (let i = 0; i < na; i++) { let bd = Infinity; const ax = a[2*i], ay = a[2*i+1]; for (let j = 0; j < nb; j++) { const dx = ax - b[2*j], dy = ay - b[2*j+1]; const dd = dx*dx + dy*dy; if (dd < bd) bd = dd; } d[i] = Math.sqrt(bd) * W; }
+  const s = Array.from(d).sort((x, y) => x - y); const q = (f) => s[Math.min(s.length - 1, Math.floor(f * s.length))]; return { p50: +q(0.5).toFixed(4), p95: +q(0.95).toFixed(4), p99: +q(0.99).toFixed(4), max: +s[s.length-1].toFixed(4), frac_gt_half_px: +(s.filter((x) => x > 0.5).length / s.length).toFixed(5) }; }
+const params = (W, H, n, nMax) => ({ width: W, height: H, n, nMax, mergeRounds: 6, perRoundFraction: 1 / 3, knnK: 8, lloydIters: 3 });
+
+window.__runTests = async () => {
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+  const device = await adapter.requestDevice();
+  const errors = []; device.addEventListener("uncapturederror", (e) => errors.push(String(e.error.message).slice(0, 300)));
+  log(`adapter ${adapter.info?.vendor}/${adapter.info?.architecture} storageBuffers=${device.limits.maxStorageBuffersPerShaderStage}`);
+  const placement = createPlacement(device);
+  try {
+    // ---- 1. assignment vs brute force ----
+    { const W = 256, H = 256, n = 2000; const r = rng(1); const pts = new Float32Array(n * 2); for (let i = 0; i < n * 2; i++) pts[i] = r();
+      placement.prepare(params(W, H, n, 3000));
+      const ptsB = uploadStorage(device, pts); const ownerB = createStorageBuffer(device, W * H * 4);
+      const enc = device.createCommandEncoder(); placement.recordAssignment(enc, ptsB, n, ownerB); const ms = await submit(device, enc);
+      const got = await readI32(device, ownerB, W * H); const pix = toPixel(pts, n, W, H); const ref = bruteOwner(pix, n, W, H);
+      const cmp = compareOwner(got, ref, pix, W, H); const unassigned = got.filter((o) => o < 0).length;
+      record("assignment_vs_bruteforce_256_2000", cmp.wrong <= 1e-4 * W * H && unassigned === 0, { ...cmp, wrong_fraction: +(cmp.wrong / (W * H)).toExponential(2), unassigned, wall_ms: +ms.toFixed(2), schedule: jfaSchedule(W, H) });
+      // ---- 2. masses ----
+      const density = syntheticDensity(W, H); const densB = uploadStorage(device, density);
+      const enc2 = device.createCommandEncoder(); const massB = placement.debug.masses(enc2, ownerB, densB, n); await submit(device, enc2);
+      const mass = await readF32(device, massB, n); const refM = scatterMass(got, density, n);
+      let maxRel = 0; for (let i = 0; i < n; i++) maxRel = Math.max(maxRel, Math.abs(mass[i] - refM[i]) / Math.max(refM[i], 1e-9));
+      record("masses_vs_scatter_add", maxRel < 1e-5, { max_rel_err: +maxRel.toExponential(2), sum: +mass.reduce((a, b) => a + b, 0).toFixed(3), density_sum: +density.reduce((a, b) => a + b, 0).toFixed(3) });
+      // ---- 3. rank/sort with many zeros ----
+      const mz = new Float32Array(n); for (let i = 0; i < n; i++) mz[i] = r() < 0.3 ? 0 : r() * 10; const mzB = uploadStorage(device, mz);
+      const enc3 = device.createCommandEncoder(); const rk = placement.debug.rank(enc3, mzB, n); await submit(device, enc3);
+      const rank = await readU32(device, rk.rank, n), ior = await readU32(device, rk.idxOfRank, n); const rr = refRank(mz, n);
+      let rankMismatch = 0, iorMismatch = 0; for (let i = 0; i < n; i++) { if (rank[i] !== rr.rank[i]) rankMismatch++; if (ior[i] !== rr.idxOfRank[i]) iorMismatch++; }
+      record("rank_stable_sort_with_zeros", rankMismatch === 0 && iorMismatch === 0, { rankMismatch, iorMismatch, zeros: mz.filter((v) => v === 0).length });
+      // ---- 4. adjacency + matching on the real assignment ----
+      const enc4 = device.createCommandEncoder(); const rk2 = placement.debug.rank(enc4, massB, n); const slotB = placement.debug.adjacency(enc4, ownerB, rk2.rank, n); await submit(device, enc4);
+      const rank2 = await readU32(device, rk2.rank, n), ior2 = await readU32(device, rk2.idxOfRank, n); const slot = await readU32(device, slotB, n * 8);
+      const refSlot = refAdjacency(got, rank2, n, W, H); let slotMismatch = 0; for (let i = 0; i < n * 8; i++) if (slot[i] !== refSlot[i]) slotMismatch++;
+      record("adjacency_topk_by_rank", slotMismatch === 0, { slotMismatch, avg_degree: +(Array.from(refSlot).filter((v) => v !== 0xFFFFFFFF).length / n).toFixed(2) });
+      const remove = 600; const enc5 = device.createCommandEncoder(); const mt = placement.debug.matching(enc5, rk2.rank, rk2.idxOfRank, slotB, n, remove); await submit(device, enc5);
+      const target = await readI32(device, mt.target, n), matched = await readU32(device, mt.matched, n), alive = await readU32(device, mt.alive, n);
+      const rm = refMatching(rank2, ior2, refSlot, n, remove); let mm = 0; for (let i = 0; i < n; i++) if (target[i] !== rm.target[i] || matched[i] !== rm.matched[i] || alive[i] !== rm.alive[i]) mm++;
+      const dead = alive.filter((a) => a === 0).length;
+      record("matching_and_force", mm === 0 && dead === remove, { mismatches: mm, dead, remove, forced: (() => { let f = 0; const fb = ior2[n-1]; for (let i = 0; i < n; i++) if (target[i] === fb) f++; return f; })() });
+      // ---- 4b. one merge round vs reference ----
+      const enc6 = device.createCommandEncoder(); const outB = placement.debug.mergeRound(enc6, ptsB, n, remove, densB); await submit(device, enc6);
+      const merged = await readF32(device, outB, (n - remove) * 2); const refNew = refMergeNew(pts, refM, rm.matched, rm.target, rm.alive, n);
+      let maxDiff = 0; for (let i = 0; i < merged.length; i++) maxDiff = Math.max(maxDiff, Math.abs(merged[i] - refNew[i]));
+      record("merge_round_vs_reference", maxDiff < 1e-5 && merged.length === refNew.length, { max_abs_diff: +maxDiff.toExponential(2), survivors: merged.length / 2 });
+      ptsB.destroy(); ownerB.destroy(); densB.destroy(); mzB.destroy();
+    }
+    // ---- 5. full pipeline, synthetic ----
+    for (const n of [500, 2000]) {
+      const W = 128, H = 128; const nMax = oversampleCount(n); const r = rng(7 + n);
+      const density = syntheticDensity(W, H); const densB = uploadStorage(device, density);
+      const over = new Float32Array(nMax * 2); for (let i = 0; i < nMax * 2; i++) over[i] = r(); const overB = uploadStorage(device, over);
+      placement.prepare(params(W, H, n, nMax));
+      const runOnce = async () => { const enc = device.createCommandEncoder(); const o = placement.record(enc, { density: densB, points: overB }); const ms = await submit(device, enc); return { o, ms }; };
+      const a = await runOnce(); const ptsA = await readF32(device, a.o.points, n * 2); const wA = await readF32(device, a.o.weights, n); const mA = await readF32(device, a.o.masses, n); const ownA = await readI32(device, a.o.owner, W * H);
+      const b = await runOnce(); const ptsB2 = await readF32(device, b.o.points, n * 2);
+      let deterministic = true; for (let i = 0; i < n * 2; i++) if (ptsA[i] !== ptsB2[i]) { deterministic = false; break; }
+      let finite = true, inBounds = true; for (let i = 0; i < n * 2; i++) { if (!Number.isFinite(ptsA[i])) finite = false; if (ptsA[i] < 0 || ptsA[i] > 1) inBounds = false; }
+      const refM = scatterMass(ownA, density, n); let massErr = 0; for (let i = 0; i < n; i++) massErr = Math.max(massErr, Math.abs(mA[i] - refM[i]) / Math.max(refM[i], 1e-9));
+      const wMean = wA.reduce((x, y) => x + y, 0) / n; const mMean = mA.reduce((x, y) => x + y, 0) / n; const mVar = mA.reduce((x, y) => x + (y - mMean) ** 2, 0) / n;
+      const pix = toPixel(ptsA, n, W, H); const ref = bruteOwner(pix, n, W, H); const cmp = compareOwner(ownA, ref, pix, W, H);
+      const massSum = mA.reduce((x, y) => x + y, 0), densSum = density.reduce((x, y) => x + y, 0);
+      record(`pipeline_synthetic_128_n${n}`, finite && inBounds && deterministic && massErr < 1e-5 && cmp.wrong === 0 && Math.abs(wMean - 1) < 1e-4 && Math.abs(massSum - densSum) / densSum < 1e-5,
+        { finite, inBounds, deterministic, owner_wrong: cmp.wrong, mass_rel_err: +massErr.toExponential(2), weight_mean: +wMean.toFixed(5), mass_var_over_mean2: +(mVar / (mMean * mMean)).toFixed(4), mass_sum: +massSum.toFixed(3), density_sum: +densSum.toFixed(3), wall_ms: +Math.min(a.ms, b.ms).toFixed(2), plan: placement.debug.plan() });
+      densB.destroy(); overB.destroy();
+    }
+    // ---- 6. golden fixture (Agent A layout: raw .bin + shapes.json + manifest.json) ----
+    try {
+      const base = "/fixtures/bench_128/";
+      const man = await fetch(base + "manifest.json"); if (!man.ok) throw new Error("no fixture");
+      const manifest = await man.json(); const shapes = await (await fetch(base + "shapes.json")).json();
+      const dshape = Array.isArray(shapes.density) ? shapes.density : (shapes.density.shape ?? shapes.density); const [H, W] = dshape; const n = manifest.n; const nMax = manifest.n_max;
+      const fetchF32 = async (name) => { const rr = await fetch(base + name); if (!rr.ok) throw new Error(`missing ${name}`); return new Float32Array(await rr.arrayBuffer()); };
+      const density = await fetchF32("density.bin"), over = await fetchF32("oversample.bin"), merged = await fetchF32("merged.bin"), polished = await fetchF32("polished.bin"), gw = await fetchF32("weights.bin"), gm = await fetchF32("masses.bin");
+      if (over.length !== nMax * 2) throw new Error(`oversample length ${over.length} != 2*n_max ${2 * nMax}`);
+      placement.prepare(params(W, H, n, nMax));
+      const densB = uploadStorage(device, density), overB = uploadStorage(device, over);
+      const encM = device.createCommandEncoder(); const mergedB = placement.debug.mergeOnly(encM, { density: densB, points: overB }); await submit(device, encM);
+      const gpuMerged = await readF32(device, mergedB, n * 2);
+      const mergedStats = nnStats(gpuMerged, merged, n, merged.length / 2, W);
+      const enc = device.createCommandEncoder(); const o = placement.record(enc, { density: densB, points: overB }); const ms = await submit(device, enc);
+      const pts = await readF32(device, o.points, n * 2); const w = await readF32(device, o.weights, n); const m = await readF32(device, o.masses, n);
+      const stats = nnStats(pts, polished, n, polished.length / 2, W); const statsBack = nnStats(polished, pts, polished.length / 2, n, W);
+      // weights at nearest-neighbor matched pairs (order differs between implementations)
+      let wMax = 0, wSum = 0, mMax = 0, pairs = 0;
+      for (let i = 0; i < n; i++) { let bd = Infinity, bj = -1; for (let j = 0; j < n; j++) { const dx = pts[2*i] - polished[2*j], dy = pts[2*i+1] - polished[2*j+1]; const dd = dx*dx + dy*dy; if (dd < bd) { bd = dd; bj = j; } }
+        if (Math.sqrt(bd) * W < 0.25) { pairs++; const dw = Math.abs(w[i] - gw[bj]); wMax = Math.max(wMax, dw); wSum += dw; mMax = Math.max(mMax, Math.abs(m[i] - gm[bj])); } }
+      const wMeanGpu = w.reduce((a, b) => a + b, 0) / n, wMeanGold = gw.reduce((a, b) => a + b, 0) / n;
+      record("golden_bench_128", stats.p99 <= 0.25 && stats.frac_gt_half_px <= 0.001 && pairs / n > 0.99,
+        { n, nMax, W, H, merged_nn_gpu_to_golden_px: mergedStats, polished_nn_gpu_to_golden_px: stats, polished_nn_golden_to_gpu_px: statsBack,
+          matched_pairs_within_quarter_px: pairs, weight_abs_diff_at_pairs: { max: +wMax.toFixed(4), mean: +(wSum / Math.max(1, pairs)).toFixed(5) }, mass_abs_diff_at_pairs_max: +mMax.toFixed(4),
+          weight_mean: { gpu: +wMeanGpu.toFixed(5), golden: +wMeanGold.toFixed(5) }, native_envelope: manifest.envelope, wall_ms: +ms.toFixed(2), plan: placement.debug.plan() });
+      densB.destroy(); overB.destroy();
+    } catch (e) { log(`SKIP golden_bench_128: ${String(e.message ?? e).slice(0, 200)}`); results.push({ name: "golden_bench_128", skipped: true, reason: String(e.message ?? e).slice(0, 200) }); }
+    // ---- 7. timing at 512 with 84129 points ----
+    { const W = 512, H = 512, n = 84129; const nMax = oversampleCount(n); const r = rng(99);
+      const density = syntheticDensity(W, H); const densB = uploadStorage(device, density);
+      const over = new Float32Array(nMax * 2); for (let i = 0; i < nMax * 2; i++) over[i] = r(); const overB = uploadStorage(device, over);
+      placement.prepare(params(W, H, n, nMax)); let best = Infinity; let o;
+      for (let i = 0; i < 3; i++) { const enc = device.createCommandEncoder(); o = placement.record(enc, { density: densB, points: overB }); best = Math.min(best, await submit(device, enc)); }
+      const pts = await readF32(device, o.points, n * 2); let finite = true; for (let i = 0; i < n * 2; i++) if (!Number.isFinite(pts[i]) || pts[i] < 0 || pts[i] > 1) { finite = false; break; }
+      const w = await readF32(device, o.weights, n); const wMean = w.reduce((x, y) => x + y, 0) / n;
+      record("timing_512_n84129", finite && Math.abs(wMean - 1) < 1e-3, { wall_ms_best_of_3: +best.toFixed(2), weight_mean: +wMean.toFixed(5) });
+      densB.destroy(); overB.destroy(); }
+  } catch (e) { record("exception", false, { error: String(e).slice(0, 500), stack: String(e.stack).slice(0, 800) }); }
+  await device.queue.onSubmittedWorkDone();
+  if (errors.length) record("no_uncaptured_gpu_errors", false, { errors: errors.slice(0, 5) }); else record("no_uncaptured_gpu_errors", true, {});
+  const failed = results.filter((r) => r.pass === false).length; const passed = results.filter((r) => r.pass === true).length;
+  return { passed, failed, results };
+};
+window.__testReady = true;
+</script></body></html>

@@ -1,0 +1,47 @@
+name: Web
+
+on:
+  push:
+    paths:
+      - "web/**"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/web.yml"
+
+permissions:
+  contents: read
+
+# Hosted runners have no GPU. This job covers everything that runs without one:
+# the TypeScript build, the Node unit tests (loaders, exporters, overlays, the
+# prebuilt wasm and its provenance), and the viewer bundle. The browser test
+# pages need WebGPU: run `npm run test:browser` on a workstation for those.
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Type-check and emit every package
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Viewer bundle
+        run: npm run build:bundle

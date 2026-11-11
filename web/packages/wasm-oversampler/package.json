@@ -1,0 +1,23 @@
+{
+  "name": "@gaussifier/wasm-oversampler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "build:wasm": "bash build.sh",
+    "test": "vitest run"
+  },
+  "files": [
+    "dist",
+    "prebuilt",
+    "src",
+    "tools",
+    "build.sh"
+  ]
+}
